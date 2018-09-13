@@ -1,5 +1,27 @@
 # -*- coding: utf-8 -*-
 
+
+"""
+Ver 1.0
+该版本已经实现了部分基本功能
+1. 创建数据结构
+2. 挖掘频繁项集
+缺陷：
+1. 当新的数据流到来，原来非频繁项集变为频繁项集，没有对原来的事务在树中做相应修改
+思考后，应当不需要每次数据流来临时对树进行修改维护。
+可以在数据流到达后，直接对新对矩阵建立新树。
+这样可以将剪枝、更新树 合并为一个简单的操作，符合奥卡姆剃刀原则。
+
+2. 挖掘频繁项集时，未能显示 1- 和 全项集。
+未能根据 Apriori 原则剪枝不需要计算支持度的项集。
+"""
+
+
+
+
+
+import copy
+
 # 全局变量
 w = 2  # 窗口数量
 w_tuple = 3  # 每个窗口包含 3 条元组
@@ -35,7 +57,11 @@ def createInitSet():
 
                 {'d': 0.5, 'f': 0.7},
                 {'d': 0.6, 'e': 0.5},
-                {'a': 0.3, 'e': 0.8}
+                {'a': 0.3, 'e': 0.8},
+
+               {'a': 0.4, 'e': 0.2, 'c': 0.7, 'f': 0.6},
+               {'a': 0.6, 'd': 0.5, 'e': 0.3, 'f': 0.3},
+               {'e': 0.1, 'c': 0.7, 'f': 0.5}
                 ]
     itemSet = []
     for trans in retDict:
@@ -187,8 +213,86 @@ def updateTree(items, inTree, inqueue, index):
         updateTree(items[1::], inTree.children[items[0]], queue, index)
 
 
-def mineTree(inTree, queue, matrix):
-    pass
+def mineTree():
+    freqItems = []
+    ExSupport = {}
+    matrix_col = 0
+    for index in queue.keys():
+        route = []
+        node = queue[index][1]
+        findroute(node, route)
+        print '路径： ', route
+        # 先将 全路径 ，计算支持度，存入 ExSupport[route] 中
+        route_item = ''
+        for i in route:
+            route_item += i
+        ExSupport[route_item] = caluExSpuuort(route_item, matrix_col)  # matrix_col 控制计算时的TID号，对应矩阵中的每一列
+        Allitems = generateallkitems(route)
+        # print '产生全组合的序号', Allitems
+        print '其项集组合为： '
+        for item in Allitems:  # item: [1,2]
+            temp_item = ''
+            for num in item:    # num: 1
+                temp_item += route[num-1]
+            print temp_item
+            if temp_item not in ExSupport.keys():
+                ExSupport[temp_item] = 0
+            ExSupport[temp_item] += caluExSpuuort(temp_item, matrix_col)
+        matrix_col += 1
+
+    print '期望支持度',ExSupport
+    for item in ExSupport.keys():
+        if ExSupport[item] >= minSup:
+            freqItems.append(item)
+    # 加入 1- 项集
+    for item in matrix.keys():
+        if matrix[item][-1] >= minSup:
+           pass
+            # freqItems.append(item)
+
+    print freqItems
+
+
+# 计算期望支持度，对与String类型对项集，以及当前数据流在矩阵中的列号
+def caluExSpuuort(str_item, TID):
+    # 当前列中，对项目概率 累乘，返回结果
+    # 首先要对字符串进行操作，取出其中对每一个项目。
+    result = 1
+    for i in range(len(str_item)):
+        Multiplier = matrix[str_item[i]][TID]
+        if Multiplier != 0:
+            result *= Multiplier
+    return result
+
+
+def findroute(node, route):
+    if node.name != 'MQTtree':
+        route.append(node.name)
+        findroute(node.parent, route)
+
+
+def generateCom(m, n, retitems, Allitems):
+    if n is 0:
+        Allitems.append(copy.copy(retitems))
+        return
+    for i in range(m, n-1, -1):
+        retitems[n-1] = i
+        generateCom(i-1, n-1, retitems, Allitems)
+
+
+def generateallkitems(route):
+    Allitems = []
+    # 产生所有的组合，这里用到组合数
+    m = len(route)
+    if m == 2:
+        return [[1, 2]]
+    retitem = [-1] * m
+    for n in range(2, m):
+        retitem[n] = []
+        for i in range(n):
+            retitem[n].append(0)
+        generateCom(m, n, retitem[n], Allitems)
+    return Allitems
 
 
 if __name__ == '__main__':
@@ -211,6 +315,6 @@ if __name__ == '__main__':
         print 'queue: ', queue
         tree.disp()
 
-    freqItems = []
-    mineTree(tree, queue, matrix)
+        # 进行挖掘
+        mineTree()
 
