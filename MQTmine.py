@@ -12,21 +12,43 @@ Ver 1.0
 可以在数据流到达后，直接对新对矩阵建立新树。
 这样可以将剪枝、更新树 合并为一个简单的操作，符合奥卡姆剃刀原则。
 
-2. 挖掘频繁项集时，未能显示 1- 和 全项集。
-未能根据 Apriori 原则剪枝不需要计算支持度的项集。
+# [9-18 已解决] 2. 挖掘频繁项集时，未能显示 1- 和 全项集。
+
+3. 未能根据 Apriori 原则剪枝不需要计算支持度的项集。
+
+# [9-19 已解决] 4. 适应大数据
+    [9-21 完美解决]
+"""
+
+"""
+w = 4, tuple = 37, siga = 0.05, p = 0.5
+195 批次出现 KeyError 错误
+代码在 234 line
+请加条状态监控语句查看错误信息
+
+错误原因：
+node 的父亲的子节点没有 node
+但是 node 的父节点链接存在
+说明删除的时候仅从父节点向下删除，子节点没有删除对父节点的链接
+即，有时父节点会失效。失效会导致什么后果？影响挖掘吗？
+
+应该是有影响的，这是一个类似双向链表的数据结构。
+在删除等操作时要注意双向操作
+"""
+
+"""
+Ver 1.1
+该版本针对数据集下完美适配，但仍有一个重大功能未实现（剪枝不需要计算支持度的项集）
+且有一巨大改进空间，可增加挖掘的准确度和
 """
 
 
-
-
-
 import copy
+import random
+import time
+import LoadData
+import Combine
 
-# 全局变量
-w = 2  # 窗口数量
-w_tuple = 3  # 每个窗口包含 3 条元组
-siga = 0.2
-minSup = w * w_tuple * siga
 
 
 class MQTtree:
@@ -40,36 +62,6 @@ class MQTtree:
         print '  '*ind, self.name, ' ', self.TID
         for child in self.children.values():
             child.disp(ind+1)
-
-
-def createInitSet():
-    retDict = [{'a': 0.9, 'd': 0.8, 'e': 0.7, 'f': 0.2},
-                {'a': 0.9, 'c': 0.7, 'd': 0.7, 'e': 0.6},
-                {'b': 1.0, 'c': 0.9},
-
-                {'b': 1.0, 'c': 0.9, 'd': 0.3},
-                {'a': 0.9, 'd': 0.8},
-                {'b': 1.0, 'd': 0.7, 'e': 0.1},
-
-                {'a': 0.9, 'd': 0.8},
-                {'b': 1.0, 'c': 0.9, 'd': 0.3},
-                {'a': 0.9, 'd': 0.8, 'e': 0.7},
-
-                {'d': 0.5, 'f': 0.7},
-                {'d': 0.6, 'e': 0.5},
-                {'a': 0.3, 'e': 0.8},
-
-               {'a': 0.4, 'e': 0.2, 'c': 0.7, 'f': 0.6},
-               {'a': 0.6, 'd': 0.5, 'e': 0.3, 'f': 0.3},
-               {'e': 0.1, 'c': 0.7, 'f': 0.5}
-                ]
-    itemSet = []
-    for trans in retDict:
-        for item in trans:
-            itemSet.append(item)
-    itemSet = frozenset(itemSet)
-    # frozenset({'a', 'b', 'c', 'd', 'e', 'f'})
-    return retDict, itemSet
 
 
 def initMQTdatas():
@@ -99,7 +91,7 @@ def genDataStruct(dataSet, i):
             # range: 0 -- 2
             for col in range((w-1) * w_tuple):
                 matrix[trans][col] = matrix[trans][col + w_tuple]
-        # 矩阵后三排清0
+        # 矩阵后 w_tuple 排清0
         for trans in matrix:
             # range: -4 -- -2
             for col in range(2, 2 + w_tuple):
@@ -115,17 +107,20 @@ def genDataStruct(dataSet, i):
 
     freqItem = []
     # 矩阵最后一列为期望支持度
-    for item in matrix:
-        matrix[item][-1] = sum(matrix[item][0:-1])
+    for trans in dataSet:
+        for item in trans:
+            matrix[item][-1] = sum(matrix[item][0:-1])
+    for item in matrix.keys():
         if matrix[item][-1] >= minSup:
             freqItem.append(item)
+
     # print matrix, freqItem
     # 对树中剪枝非频繁项集
     if i >= w:
         deleteNFPNodeInTree(freqItem, tree)
 
 
-    #
+    # 构建树
     index = i * w_tuple - 1
     for trans in dataSet:
         # 获取当前事务的频繁项集，并更新树结构
@@ -134,17 +129,32 @@ def genDataStruct(dataSet, i):
         for item in trans:
             if item in freqItem:
                 fpInTrans.append(item)
-        if len(fpInTrans) > 0:
+        if len(fpInTrans) == 0:
+            tree.TID.append(index)
+            queue[index] = [tree.name, tree]
+        elif len(fpInTrans) > 0:
             # 字典序排序
             orderedItems = sorted(fpInTrans)
             updateTree(orderedItems, tree, queue, index)
+    #
+    # for i in range(w * w_tuple):
+    #     fpInTrans = []
+    #     for item in matrix.keys():
+    #         if item in freqItem and matrix[item][i] > 0:
+    #             fpInTrans.append(item)
+    #     if len(fpInTrans) > 0:
+    #         orderedItems = sorted(fpInTrans)
+    #         updateTree(orderedItems, tree, queue, index)
 
 
 # 删除树中过时信息
 def deleteOverTransInTree(i):
-    for index in range((i-2) * w_tuple, (i-1) * w_tuple):
+    for index in range((i-w) * w_tuple, (i-w+1) * w_tuple):
         nodename, node = queue[index]
-        if node.children != {}:  # 若不是叶子节点，直接删除 TID 标示即可
+        if nodename == 'MQTtree':
+            del queue[index]
+            node.TID.remove(index)
+        elif node.children != {}:  # 若不是叶子节点，直接删除 TID 标示即可
             del queue[index]
             node.TID.remove(index)
         else:
@@ -156,10 +166,14 @@ def deleteOverTransInTree(i):
             elif len(node.TID) == 1:
                 # 沿着该节点向上搜索，删除不含TID的节点
                 nparent = node.parent
-                nparentname = node.parent.name
-                del node.parent.children[nodename]
+                nparentname = nparent.name
+                for children in node.children.keys():
+                    children.parent = nparent
+                if nodename in node.parent.children.keys():
+                    del node.parent.children[nodename]
                 del queue[index]
-                ascendDeleteFromTree(nparent, nparentname)
+                ascendDeleteFromTree(node.parent, nparentname)
+                del node
 
 
 def ascendDeleteFromTree(node, nodename):
@@ -168,7 +182,10 @@ def ascendDeleteFromTree(node, nodename):
             # 只有树中节点只有一个孩子
             nparent = node.parent
             nparentname = node.parent.name
-            del node.parent.children[nodename]
+            for children in node.children.keys():
+                children.parent = nparent
+            if nodename in node.parent.children.keys():
+                del node.parent.children[nodename]
             ascendDeleteFromTree(nparent, nparentname)
 
 
@@ -178,23 +195,25 @@ def ascendDeleteFromTree(node, nodename):
 # 如果该节点是末项，则应将该节点的 TID 标示上传给父节点，并更新 queue 中数据
 # 删除该节点的空间。
 def deleteNFPNodeInTree(freqItem, intree):
+    if len(intree.children) == 0:
+        return
     for nodename in intree.children.keys():
         node = intree.children[nodename]
-        if node is None:
-            return
         if nodename not in freqItem:
             # 末项频繁项集，TID 上传
             if len(node.TID) >= 1:
                 for index in node.TID:
                     queue[index] = [intree.name, intree]
-                intree.TID = node.TID
+                    intree.TID.append(index)
+
+            deleteNFPNodeInTree(freqItem, node)
+
             # 孩子节点与父节点链接
             for cpykey in node.children.keys():
                 intree.children[cpykey] = node.children[cpykey]
                 node.children[cpykey].parent = intree
-            del node.parent.children[nodename]
             # 扫描删除节点的孩子节点。
-            deleteNFPNodeInTree(freqItem, intree)
+            del node.parent.children[nodename]
         # 否则继续向下扫描孩子节点
         else:
             deleteNFPNodeInTree(freqItem, node)
@@ -212,57 +231,80 @@ def updateTree(items, inTree, inqueue, index):
     else:
         updateTree(items[1::], inTree.children[items[0]], queue, index)
 
-
-def mineTree():
-    freqItems = []
-    ExSupport = {}
-    matrix_col = 0
+def minetest(mine_i):
+    freqItems = []  # 存储频繁项集
+    ExSupport = {}  # 各项集 与 期望支持度 的字典
+    NotFPI = []     # 非频繁项
+    handledRoute = []  # 已经处理过的矩阵列
     for index in queue.keys():
-        route = []
+        if index in handledRoute:       # 如果该 TID 路径已经计算过，则无需重复计算
+            continue
+        route = []       # 当前路径
         node = queue[index][1]
+        needCalCol = []  # 需要计算的矩阵列
+        for handledTID in node.TID:
+            # handledTID --> matrix_col
+            needCalCol.append(handledTID - ((mine_i-w+1) if mine_i >= w else 0) * w_tuple)  # 当前需要处理的矩阵列，通过 TID 号映射到矩阵到列号
+            handledRoute.append(handledTID)
         findroute(node, route)
-        print '路径： ', route
-        # 先将 全路径 ，计算支持度，存入 ExSupport[route] 中
-        route_item = ''
-        for i in route:
-            route_item += i
-        ExSupport[route_item] = caluExSpuuort(route_item, matrix_col)  # matrix_col 控制计算时的TID号，对应矩阵中的每一列
-        Allitems = generateallkitems(route)
-        # print '产生全组合的序号', Allitems
-        print '其项集组合为： '
-        for item in Allitems:  # item: [1,2]
-            temp_item = ''
-            for num in item:    # num: 1
-                temp_item += route[num-1]
-            print temp_item
-            if temp_item not in ExSupport.keys():
-                ExSupport[temp_item] = 0
-            ExSupport[temp_item] += caluExSpuuort(temp_item, matrix_col)
-        matrix_col += 1
 
-    print '期望支持度',ExSupport
+        stopLoopFlag = False        # 停止循环标识位，暂未实现功能。
+        for k in range(2, 5 if 5 < len(route) else 1+len(route)):
+            # print k, ' combine',
+            # if stopLoopFlag:
+            #     break
+            k_itemCombined = Combine.generatekitems(route, k)   # 根据路径与 k 生成组合，然后对其遍历
+            k_itemCombined = k_itemCombined[0:-1]
+            # print 'OK, Callen=',
+
+            for item in k_itemCombined:
+                real_item = []      # 该组合项集的列表
+                item_hash = ''      # hash 编码，唯一表示该组合项集路径
+                for num in item:
+                    item_hash += route[num - 1]
+                    real_item.append(route[num-1])
+                # if hasNotFPIset(item_hash, NotFPI):     # 如果该组合项集有子集是非频繁项集，则无需对其进一步计算
+                    # continue
+                if item_hash not in ExSupport.keys():
+                    ExSupport[item_hash] = 0
+                ExSupport[item_hash] += caluExSpuuort(real_item, needCalCol)    # 计算支持度
+            # for item_h in ExSupport.keys():
+            #     if ExSupport[item_h] < minSup:
+            #         NotFPI.append(item_hash)
+
+            # print 'OK.'
+    # 所有 TID 遍历完
+    # 筛选频繁项集
     for item in ExSupport.keys():
         if ExSupport[item] >= minSup:
             freqItems.append(item)
-    # 加入 1- 项集
-    for item in matrix.keys():
-        if matrix[item][-1] >= minSup:
-           pass
-            # freqItems.append(item)
-
-    print freqItems
+    if len(freqItems) >= 1:
+        print freqItems
 
 
-# 计算期望支持度，对与String类型对项集，以及当前数据流在矩阵中的列号
-def caluExSpuuort(str_item, TID):
-    # 当前列中，对项目概率 累乘，返回结果
-    # 首先要对字符串进行操作，取出其中对每一个项目。
-    result = 1
-    for i in range(len(str_item)):
-        Multiplier = matrix[str_item[i]][TID]
-        if Multiplier != 0:
-            result *= Multiplier
-    return result
+def hasNotFPIset(NowI, NotFPI):
+    # NotFPI 中是否有 NowI 的子集
+    for NI in set(NotFPI):   # [1,4]
+        # if set(NI).issubset(NowI):
+        if NI in NowI:
+            return True
+    return False
+
+def caluExSpuuort(route, needCalTID):
+    Sumresult = 0
+    for matrix_col in needCalTID:
+        result = 1
+        for i in route:
+            if matrix_col > 148 or matrix_col < 0:
+                print matrix_col, 'error'
+            Multiplier = matrix[i][matrix_col]
+            if Multiplier != 0:
+                result *= Multiplier
+        Sumresult += result
+    if Sumresult == len(needCalTID):
+        return 0
+    else:
+        return Sumresult
 
 
 def findroute(node, route):
@@ -271,50 +313,43 @@ def findroute(node, route):
         findroute(node.parent, route)
 
 
-def generateCom(m, n, retitems, Allitems):
-    if n is 0:
-        Allitems.append(copy.copy(retitems))
-        return
-    for i in range(m, n-1, -1):
-        retitems[n-1] = i
-        generateCom(i-1, n-1, retitems, Allitems)
-
-
-def generateallkitems(route):
-    Allitems = []
-    # 产生所有的组合，这里用到组合数
-    m = len(route)
-    if m == 2:
-        return [[1, 2]]
-    retitem = [-1] * m
-    for n in range(2, m):
-        retitem[n] = []
-        for i in range(n):
-            retitem[n].append(0)
-        generateCom(m, n, retitem[n], Allitems)
-    return Allitems
-
-
 if __name__ == '__main__':
-    dataSet, itemSet = createInitSet()
-    # itemSet = frozenset({'a', 'b', 'c', 'd', 'e', 'f'})
+
+    w = 2  # 窗口数量  4 * 37
+    w_tuple = 3  # 每个窗口包含 3 条元组
+    siga = 0.1
+    minSup = w * w_tuple * siga
+
+
+    # dataSet, itemSet = LoadData.loadIBMDataSet()
+    # dataSet, itemSet = LoadData.loadConnectData()
+    dataSet, itemSet = LoadData.loadSimpleData()
     # 初始化数据结构
     matrix, tree, queue = initMQTdatas()
 
+    costTime = 0
     # 开始读取数据流
     for i in range(len(dataSet)/w_tuple):
-        print '读取第 ', i+1, ' 批数据'
+    # for i in range(100):
+        # if i % 100 == 0:
+        print i
         # 截取数据
         data = dataSet[i * w_tuple:(i+1) * w_tuple]
         # 构造数据结构
         genDataStruct(data, i)
-        print '读取成功'
 
-        # print '第 ', i+1, ' 个窗口读取事务'
-        print 'matrix: ', matrix
-        print 'queue: ', queue
-        tree.disp()
+        # print 'matrix: ', matrix
+        # print 'queue: ', queue
+        # tree.disp()
 
-        # 进行挖掘
-        mineTree()
+        # print '开始挖掘'
+        # mineTree()
+
+        time_start = time.time()
+        minetest(i)
+        time_end = time.time()
+        costTime += (time_end - time_start)
+    print 'final cost time for mine: ',costTime,' s'
+
+
 
