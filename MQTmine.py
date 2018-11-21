@@ -315,22 +315,22 @@ def findroute(node, route):
 
 if __name__ == '__main__':
 
-    w = 2  # 窗口数量  4 * 37
-    w_tuple = 3  # 每个窗口包含 3 条元组
-    siga = 0.1
+    w = 4  # 窗口数量  4 * 37
+    w_tuple = 37  # 每个窗口包含 3 条元组
+    siga = 0.02
     minSup = w * w_tuple * siga
 
 
-    # dataSet, itemSet = LoadData.loadIBMDataSet()
+    dataSet, itemSet = LoadData.loadIBMDataSet()
     # dataSet, itemSet = LoadData.loadConnectData()
-    dataSet, itemSet = LoadData.loadSimpleData()
+    # dataSet, itemSet = LoadData.loadSimpleData()
     # 初始化数据结构
     matrix, tree, queue = initMQTdatas()
 
     costTime = 0
     # 开始读取数据流
-    for i in range(len(dataSet)/w_tuple):
-    # for i in range(100):
+    #for i in range(len(dataSet)/w_tuple):
+    for i in range(50):
         # if i % 100 == 0:
         print i
         # 截取数据
