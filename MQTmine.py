@@ -38,8 +38,8 @@ node 的父亲的子节点没有 node
 
 """
 Ver 1.1
-该版本针对数据集下完美适配，但仍有一个重大功能未实现（剪枝不需要计算支持度的项集）
-且有一巨大改进空间，可增加挖掘的准确度和
+该版本针对数据集下完美适配，但仍有一个重大功能未实现（剪枝 不需要计算支持度的项集）
+且有一巨大改进空间，可增加挖掘的准确度和速度
 """
 
 
@@ -114,6 +114,9 @@ def genDataStruct(dataSet, i):
         if matrix[item][-1] >= minSup:
             freqItem.append(item)
 
+    # 输出1-频繁项集
+    # print '1-Frequent Pattern' , freqItem
+
     # print matrix, freqItem
     # 对树中剪枝非频繁项集
     if i >= w:
@@ -133,7 +136,7 @@ def genDataStruct(dataSet, i):
             tree.TID.append(index)
             queue[index] = [tree.name, tree]
         elif len(fpInTrans) > 0:
-            # 字典序排序
+            # 字典序排序, 字符串排序，此处非严格大小排序
             orderedItems = sorted(fpInTrans)
             updateTree(orderedItems, tree, queue, index)
     #
@@ -244,7 +247,12 @@ def minetest(mine_i):
         needCalCol = []  # 需要计算的矩阵列
         for handledTID in node.TID:
             # handledTID --> matrix_col
-            needCalCol.append(handledTID - ((mine_i-w+1) if mine_i >= w else 0) * w_tuple)  # 当前需要处理的矩阵列，通过 TID 号映射到矩阵到列号
+            temp_var = handledTID - ((mine_i - w + 1) if mine_i >= w else 0) * w_tuple
+            # if temp_var < 0:
+            #     print 'needCol', temp_var
+            #     print 'TID', handledTID
+            #     print 'mine_i',mine_i
+            needCalCol.append(temp_var)  # 当前需要处理的矩阵列，通过 TID 号映射到矩阵到列号
             handledRoute.append(handledTID)
         findroute(node, route)
 
@@ -278,6 +286,10 @@ def minetest(mine_i):
     for item in ExSupport.keys():
         if ExSupport[item] >= minSup:
             freqItems.append(item)
+    # # 加入 1- 项集                            [undo]  在构建数据结构时已经输出
+    # for item in matrix.keys():
+    #     if matrix[item][-1] >= minSup:
+    #         freqItems.append(item)
     if len(freqItems) >= 1:
         print freqItems
 
@@ -290,12 +302,13 @@ def hasNotFPIset(NowI, NotFPI):
             return True
     return False
 
+
 def caluExSpuuort(route, needCalTID):
     Sumresult = 0
     for matrix_col in needCalTID:
         result = 1
         for i in route:
-            if matrix_col > 148 or matrix_col < 0:
+            if matrix_col < 0:
                 print matrix_col, 'error'
             Multiplier = matrix[i][matrix_col]
             if Multiplier != 0:
@@ -316,23 +329,23 @@ def findroute(node, route):
 if __name__ == '__main__':
 
     w = 4  # 窗口数量  4 * 37
-    w_tuple = 37  # 每个窗口包含 3 条元组
-    siga = 0.02
-    minSup = w * w_tuple * siga
+    w_tuple = 40  # 每个窗口包含 3 条元组
+    siga = 0.01
+    minSup = w * w_tuple * siga # 160 * 0.01 = 1.6
 
-
+    time_start = time.time()
     dataSet, itemSet = LoadData.loadIBMDataSet()
     # dataSet, itemSet = LoadData.loadConnectData()
     # dataSet, itemSet = LoadData.loadSimpleData()
     # 初始化数据结构
     matrix, tree, queue = initMQTdatas()
 
-    costTime = 0
+    # costTime = 0
     # 开始读取数据流
-    #for i in range(len(dataSet)/w_tuple):
+    # for i in range(len(dataSet)/w_tuple):
     for i in range(50):
-        # if i % 100 == 0:
-        print i
+        if i % 10 == 0:
+            print i
         # 截取数据
         data = dataSet[i * w_tuple:(i+1) * w_tuple]
         # 构造数据结构
@@ -343,13 +356,12 @@ if __name__ == '__main__':
         # tree.disp()
 
         # print '开始挖掘'
-        # mineTree()
 
-        time_start = time.time()
         minetest(i)
-        time_end = time.time()
-        costTime += (time_end - time_start)
-    print 'final cost time for mine: ',costTime,' s'
 
+    time_end = time.time()
+        # costTime += (time_end - time_start)
+    # print 'final cost time for mine: ',costTime,' s'
+    print time_end - time_start
 
 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import random
 
+
 def loadSimpleData():
     result = [{'a': 0.9, 'd': 0.8, 'e': 0.7, 'f': 0.2},
                 {'a': 0.9, 'c': 0.7, 'd': 0.7, 'e': 0.6},
