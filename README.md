@@ -20,5 +20,3 @@ connect-4.data、connect.dat —— connect 数据集
 T10I4D100k.txt、T10I4D1000.txt —— IBM提供的数据集
 
 temp.py —— 一些临时代码。
-
-代码小部分参考《机器学习实战》中 FP-growth 算法。（主要是树结构的操作部分）
